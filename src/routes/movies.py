@@ -57,7 +57,7 @@ async def read_movies(
     )
     movies = result.scalars().all()
 
-    base_url = str(request.url).split("?")[0]
+    base_url = request.url.path
     if not movies:
         raise HTTPException(
             status_code=404,
