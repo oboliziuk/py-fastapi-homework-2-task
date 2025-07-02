@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.openapi.models import Response
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -109,7 +110,8 @@ async def get_movie(
 async def create_movie(
         movie: MovieCreate, db: AsyncSession = Depends(get_db)
 ):
-    country = await db.get(CountryModel, movie.country_id)
+    result = await db.execute(select(CountryModel).where(CountryModel.name == movie.country))
+    country = result.scalar_one_or_none()
     if not country:
         raise HTTPException(status_code=404, detail="country not found")
 
@@ -135,7 +137,7 @@ async def create_movie(
         status=movie.status,
         budget=movie.budget,
         revenue=movie.revenue,
-        country_id=movie.country_id,
+        country_id=country.id,
     )
 
     new_movie.genres = []
@@ -143,7 +145,7 @@ async def create_movie(
         result = await db.execute(
             select(GenreModel).where(GenreModel.name == genre_name)
         )
-        genre = result.scalar_one()
+        genre = result.scalar_one_or_none()
         if not genre:
             genre = GenreModel(name=genre_name)
             db.add(genre)
@@ -155,7 +157,7 @@ async def create_movie(
         result = await db.execute(
             select(ActorModel).where(ActorModel.name == actor_name)
         )
-        actor = result.scalar_one()
+        actor = result.scalar_one_or_none()
         if not actor:
             actor = ActorModel(name=actor_name)
             db.add(actor)
@@ -167,7 +169,7 @@ async def create_movie(
         result = await db.execute(
             select(LanguageModel).where(LanguageModel.name == lang_name)
         )
-        lang = result.scalar_one()
+        lang = result.scalar_one_or_none()
         if not lang:
             lang = LanguageModel(name=lang_name)
             db.add(lang)
@@ -260,3 +262,4 @@ async def delete_movie(
 
     await db.delete(db_movie)
     await db.commit()
+    return Response(status_code=204)
