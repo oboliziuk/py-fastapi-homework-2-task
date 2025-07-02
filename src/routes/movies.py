@@ -52,12 +52,13 @@ async def read_movies(
 
     result = await db.execute(
         select(MovieModel)
+        .order_by(MovieModel.id.desc())
         .offset((page - 1) * per_page)
         .limit(per_page)
     )
     movies = result.scalars().all()
 
-    base_url = request.url.path
+    base_url = str(request.url).split("?")[0]
     if not movies:
         raise HTTPException(
             status_code=404,
