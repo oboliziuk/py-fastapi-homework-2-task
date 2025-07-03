@@ -62,7 +62,7 @@ async def read_movies(
     )
     movies = result.scalars().all()
 
-    base_path = request.scope["path"]
+    base_path = "/theater/movies/"
 
     if not movies:
         raise HTTPException(
@@ -208,6 +208,8 @@ async def update_movie(
         )
 
     await db.commit()
+    await db.refresh(db_movie)
+
     return JSONResponse(
         content={"detail": "Movie updated successfully."}
     )
