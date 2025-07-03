@@ -19,9 +19,9 @@ import math
 
 from schemas.movies import (
     MovieDetailSchema,
-    MovieCreate,
-    MovieReplace,
-    MovieUpdate,
+    MovieCreateSchema,
+    MovieReplaceSchema,
+    MovieUpdateSchema,
     MovieListResponseSchema,
     MovieListItemSchema,
     PaginationParams,
@@ -49,6 +49,9 @@ async def read_movies(
     )
     total_items = total_items_result.scalar_one()
     total_pages = math.ceil(total_items / per_page)
+
+    if total_items == 0:
+        raise HTTPException(status_code=404, detail="No movies found.")
 
     result = await db.execute(
         select(MovieModel)
@@ -109,12 +112,12 @@ async def get_movie(
     response_model=MovieDetailSchema
 )
 async def create_movie(
-        movie: MovieCreate, db: AsyncSession = Depends(get_db)
+        movie: MovieCreateSchema, db: AsyncSession = Depends(get_db)
 ):
     result = await db.execute(select(CountryModel).where(CountryModel.name == movie.country))
     country = result.scalar_one_or_none()
     if not country:
-        raise HTTPException(status_code=404, detail="country not found")
+        raise HTTPException(status_code=404, detail="Country not found")
 
     existing_movie_query = await db.execute(
         select(MovieModel).where(
@@ -125,10 +128,17 @@ async def create_movie(
     existing_movie = existing_movie_query.scalar_one_or_none()
     if existing_movie:
         raise HTTPException(
-            status_code=409,
+            status_code=status.HTTP_409_CONFLICT,
             detail=f"A movie with the name '{movie.name}' "
                    f"and release date '{movie.date}' already exists."
         )
+
+    country_result = await db.execute(
+        select(CountryModel).where(CountryModel.code == movie.country)
+    )
+    country = country_result.scalar_one_or_none()
+    if not country:
+        raise HTTPException(status_code=404, detail="Country not found")
 
     new_movie = MovieModel(
         name=movie.name,
@@ -142,7 +152,7 @@ async def create_movie(
     )
 
     new_movie.genres = []
-    for genre_name in movie.genres:
+    for genre_name in movie.genres or []:
         result = await db.execute(
             select(GenreModel).where(GenreModel.name == genre_name)
         )
@@ -154,7 +164,7 @@ async def create_movie(
             new_movie.genres.append(genre)
 
     new_movie.actors = []
-    for actor_name in movie.actors:
+    for actor_name in movie.actors or []:
         result = await db.execute(
             select(ActorModel).where(ActorModel.name == actor_name)
         )
@@ -166,7 +176,7 @@ async def create_movie(
             new_movie.actors.append(actor)
 
     new_movie.languages = []
-    for lang_name in movie.languages:
+    for lang_name in movie.languages or []:
         result = await db.execute(
             select(LanguageModel).where(LanguageModel.name == lang_name)
         )
@@ -175,7 +185,7 @@ async def create_movie(
             lang = LanguageModel(name=lang_name)
             db.add(lang)
             await db.flush()
-            new_movie.languages.append(lang)
+        new_movie.languages.append(lang)
 
     db.add(new_movie)
     await db.commit()
@@ -194,7 +204,7 @@ async def create_movie(
 )
 async def replace_movie(
     movie_id: int,
-    movie: MovieReplace,
+    movie: MovieReplaceSchema,
     db: AsyncSession = Depends(get_db)
 ):
     db_movie = await db.scalar(
@@ -226,7 +236,7 @@ async def replace_movie(
 )
 async def update_movie(
         movie_id: int,
-        movie: MovieUpdate,
+        movie: MovieUpdateSchema,
         db: AsyncSession = Depends(get_db),
 ):
     db_movie = await db.scalar(
@@ -259,8 +269,7 @@ async def delete_movie(
         select(MovieModel).where(MovieModel.id == movie_id)
     )
     if not db_movie:
-        raise HTTPException(status_code=404, detail="Movie not found")
+        raise HTTPException(status_code=404, detail="Movie with the given ID was not found.")
 
     await db.delete(db_movie)
     await db.commit()
-    return Response(status_code=204)

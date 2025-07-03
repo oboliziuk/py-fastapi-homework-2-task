@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, constr
 from pydantic.config import ConfigDict
 
 from datetime import date, timedelta
@@ -53,13 +53,13 @@ class LanguageSchema(BaseModel):
 
 
 class MovieBase(BaseModel):
-    name: str
+    name: constr(max_length=255)
     date: date
-    score: float
+    score: float = Field(..., ge=0, le=100)
     overview: str
     status: MovieStatusEnum
-    budget: float
-    revenue: float
+    budget: float = Field(..., ge=0)
+    revenue: float = Field(..., ge=0)
     country: str
     genres: List[str]
     actors: List[str]
@@ -74,44 +74,32 @@ class MovieBase(BaseModel):
             raise ValueError("The date must not be more than one year in the future.")
         return value
 
-    @validator("score")
-    def validate_score_between_0_and_100(cls, value):
-        if not 0 <= value <= 100:
-            raise ValueError("The score must be between 0 and 100.")
-        return value
 
-    @validator("budget")
-    def validate_budget_non_negative(cls, value):
-        if value < 0:
-            raise ValueError("The budget must be non-negative.")
-        return value
-
-    @validator("revenue")
-    def validate_revenue_non_negative(cls, value):
-        if value < 0:
-            raise ValueError("The revenue must be non-negative.")
-        return value
-
-
-class MovieCreate(MovieBase):
+class MovieCreateSchema(MovieBase):
     pass
 
 
-class MovieReplace(MovieBase):
+class MovieReplaceSchema(MovieBase):
     pass
 
 
-class MovieUpdate(BaseModel):
+class MovieUpdateSchema(BaseModel):
     name: Optional[str]
     date: Optional[date]
-    score: Optional[float]
+    score: Optional[float] = Field(None, ge=0, le=100)
     overview: Optional[str]
     status: Optional[MovieStatusEnum]
-    budget: Optional[float]
-    revenue: Optional[float]
+    budget: Optional[float] = Field(None, ge=0)
+    revenue: Optional[float] = Field(None, ge=0)
 
     class Config:
         from_attributes = True
+
+    @field_validator("date")
+    def validate_date_not_too_far(cls, v):
+        if v is not None and v > date.today() + timedelta(days=365):
+            raise ValueError("The date must not be more than one year in the future.")
+        return v
 
 
 class MovieDetailSchema(MovieBase):
