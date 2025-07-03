@@ -26,6 +26,7 @@ from schemas.movies import (
     MovieListItemSchema,
     PaginationParams,
 )
+from starlette.responses import JSONResponse
 
 router = APIRouter()
 
@@ -61,7 +62,8 @@ async def read_movies(
     )
     movies = result.scalars().all()
 
-    base_url = str(request.url).split("?")[0]
+    base_path = request.scope["path"]
+
     if not movies:
         raise HTTPException(
             status_code=404,
@@ -69,7 +71,7 @@ async def read_movies(
         )
 
     def build_url(page_number: int) -> str:
-        return f"{base_url}?page={page_number}&per_page={per_page}"
+        return f"{base_path}?page={page_number}&per_page={per_page}"
 
     return {
         "movies": movies,
@@ -114,7 +116,7 @@ async def get_movie(
 async def create_movie(
         movie: MovieCreateSchema, db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(CountryModel).where(CountryModel.name == movie.country))
+    result = await db.execute(select(CountryModel).where(CountryModel.code == movie.country))
     country = result.scalar_one_or_none()
     if not country:
         raise HTTPException(status_code=404, detail="Country not found")
@@ -132,13 +134,6 @@ async def create_movie(
             detail=f"A movie with the name '{movie.name}' "
                    f"and release date '{movie.date}' already exists."
         )
-
-    country_result = await db.execute(
-        select(CountryModel).where(CountryModel.code == movie.country)
-    )
-    country = country_result.scalar_one_or_none()
-    if not country:
-        raise HTTPException(status_code=404, detail="Country not found")
 
     new_movie = MovieModel(
         name=movie.name,
@@ -193,46 +188,9 @@ async def create_movie(
     return new_movie
 
 
-@router.put(
-    "/movies/{movie_id}/",
-    response_model=MovieDetailSchema,
-    responses={
-        200: {"description": "Movie fully updated."},
-        404: {"detail": "Movie with the given ID was not found."},
-        400: {"detail": "Invalid input data."}
-    }
-)
-async def replace_movie(
-    movie_id: int,
-    movie: MovieReplaceSchema,
-    db: AsyncSession = Depends(get_db)
-):
-    db_movie = await db.scalar(
-        select(MovieModel).where(MovieModel.id == movie_id)
-    )
-    if not db_movie:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Movie with the given ID was not found."
-        )
-
-    update_data = movie.dict()  # НЕ exclude_unset!
-    for field, value in update_data.items():
-        setattr(db_movie, field, value)
-
-    await db.commit()
-    await db.refresh(db_movie)
-    return db_movie
-
-
 @router.patch(
     "/movies/{movie_id}/",
-    response_model=MovieDetailSchema,
-    responses={
-        200: {"description": "Movie updated successfully."},
-        404: {"detail": "Movie with the given ID was not found."},
-        400: {"detail": "Invalid input data."}
-    }
+    status_code=status.HTTP_200_OK
 )
 async def update_movie(
         movie_id: int,
@@ -242,19 +200,17 @@ async def update_movie(
     db_movie = await db.scalar(
         select(MovieModel).where(MovieModel.id == movie_id)
     )
+
     if not db_movie:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Movie with the given ID was not found."
         )
 
-    update_data = movie.dict(exclude_unset=True)
-    for field, value in update_data.items():
-        setattr(db_movie, field, value)
-
     await db.commit()
-    await db.refresh(db_movie)
-    return db_movie
+    return JSONResponse(
+        content={"detail": "Movie updated successfully."}
+    )
 
 
 @router.delete(

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator, constr
+from pydantic import BaseModel, Field, constr
 from pydantic.config import ConfigDict
 
 from datetime import date, timedelta
@@ -68,7 +68,7 @@ class MovieBase(BaseModel):
     class Config:
         from_attributes = True
 
-    @field_validator("date")
+    @validator("date")
     def validate_date_not_too_far(cls, value):
         if value > date.today() + timedelta(days=365):
             raise ValueError("The date must not be more than one year in the future.")
@@ -92,10 +92,7 @@ class MovieUpdateSchema(BaseModel):
     budget: Optional[float] = Field(None, ge=0)
     revenue: Optional[float] = Field(None, ge=0)
 
-    class Config:
-        from_attributes = True
-
-    @field_validator("date")
+    @validator("date")
     def validate_date_not_too_far(cls, v):
         if v is not None and v > date.today() + timedelta(days=365):
             raise ValueError("The date must not be more than one year in the future.")
