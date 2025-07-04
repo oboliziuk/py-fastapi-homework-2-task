@@ -84,11 +84,11 @@ class MovieReplaceSchema(MovieBase):
 
 
 class MovieUpdateSchema(BaseModel):
-    name: Optional[str]
-    date: Optional[date]
+    name: Optional[str] = None
+    date: Optional[date] = None
     score: Optional[float] = Field(None, ge=0, le=100)
-    overview: Optional[str]
-    status: Optional[MovieStatusEnum]
+    overview: Optional[str] = None
+    status: Optional[MovieStatusEnum] = None
     budget: Optional[float] = Field(None, ge=0)
     revenue: Optional[float] = Field(None, ge=0)
 
