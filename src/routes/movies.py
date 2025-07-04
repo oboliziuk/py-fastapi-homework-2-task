@@ -92,6 +92,7 @@ async def get_movie(
 ):
     result = await db.execute(
         select(MovieModel)
+        .where(MovieModel.id == movie_id)
         .options(
             selectinload(MovieModel.country),
             selectinload(MovieModel.genres),
@@ -100,7 +101,7 @@ async def get_movie(
         )
         .where(MovieModel.id == movie_id)
     )
-    movie = result.unique().scalar_one_or_none()
+    movie = result.scalar_one_or_none()
     if not movie:
         raise HTTPException(
             status_code=404,
@@ -111,16 +112,12 @@ async def get_movie(
 
 @router.post(
     "/movies/",
-    response_model=MovieDetailSchema
+    response_model=MovieDetailSchema,
+    status_code=status.HTTP_201_CREATED
 )
 async def create_movie(
-        movie: MovieCreateSchema, db: AsyncSession = Depends(get_db)
+    movie: MovieCreateSchema, db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(CountryModel).where(CountryModel.code == movie.country))
-    country = result.scalar_one_or_none()
-    if not country:
-        raise HTTPException(status_code=404, detail="Country not found")
-
     existing_movie_query = await db.execute(
         select(MovieModel).where(
             MovieModel.name == movie.name,
@@ -135,6 +132,14 @@ async def create_movie(
                    f"and release date '{movie.date}' already exists."
         )
 
+    result = await db.execute(select(CountryModel).where(CountryModel.code == movie.country))
+    country = result.scalar_one_or_none()
+    if not country:
+        country = CountryModel(code=movie.country, name=None)
+        db.add(country)
+        await db.flush()
+        await db.refresh(country)
+
     new_movie = MovieModel(
         name=movie.name,
         date=movie.date,
@@ -146,8 +151,9 @@ async def create_movie(
         country_id=country.id,
     )
 
+
     new_movie.genres = []
-    for genre_name in movie.genres or []:
+    for genre_name in movie.genres:
         result = await db.execute(
             select(GenreModel).where(GenreModel.name == genre_name)
         )
@@ -156,10 +162,11 @@ async def create_movie(
             genre = GenreModel(name=genre_name)
             db.add(genre)
             await db.flush()
-            new_movie.genres.append(genre)
+            await db.refresh(genre)
+        new_movie.genres.append(genre)
 
     new_movie.actors = []
-    for actor_name in movie.actors or []:
+    for actor_name in movie.actors:
         result = await db.execute(
             select(ActorModel).where(ActorModel.name == actor_name)
         )
@@ -168,10 +175,11 @@ async def create_movie(
             actor = ActorModel(name=actor_name)
             db.add(actor)
             await db.flush()
-            new_movie.actors.append(actor)
+            await db.refresh(actor)
+        new_movie.actors.append(actor)
 
     new_movie.languages = []
-    for lang_name in movie.languages or []:
+    for lang_name in movie.languages:
         result = await db.execute(
             select(LanguageModel).where(LanguageModel.name == lang_name)
         )
@@ -180,6 +188,7 @@ async def create_movie(
             lang = LanguageModel(name=lang_name)
             db.add(lang)
             await db.flush()
+            await db.refresh(lang)
         new_movie.languages.append(lang)
 
     db.add(new_movie)
