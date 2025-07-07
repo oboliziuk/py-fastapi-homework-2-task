@@ -112,7 +112,7 @@ async def get_movie(
 
 @router.post(
     "/movies/",
-    response_model=MovieDetailSchema,
+    # response_model=MovieDetailSchema,
     status_code=status.HTTP_201_CREATED
 )
 async def create_movie(
@@ -140,19 +140,7 @@ async def create_movie(
         await db.flush()
         await db.refresh(country)
 
-    new_movie = MovieModel(
-        name=movie.name,
-        date=movie.date,
-        score=movie.score,
-        overview=movie.overview,
-        status=movie.status,
-        budget=movie.budget,
-        revenue=movie.revenue,
-        country_id=country.id,
-    )
-
-
-    new_movie.genres = []
+    genres = []
     for genre_name in movie.genres:
         result = await db.execute(
             select(GenreModel).where(GenreModel.name == genre_name)
@@ -163,9 +151,9 @@ async def create_movie(
             db.add(genre)
             await db.flush()
             await db.refresh(genre)
-        new_movie.genres.append(genre)
+        genres.append(genre)
 
-    new_movie.actors = []
+    actors = []
     for actor_name in movie.actors:
         result = await db.execute(
             select(ActorModel).where(ActorModel.name == actor_name)
@@ -176,9 +164,9 @@ async def create_movie(
             db.add(actor)
             await db.flush()
             await db.refresh(actor)
-        new_movie.actors.append(actor)
+        actors.append(actor)
 
-    new_movie.languages = []
+    languages = []
     for lang_name in movie.languages:
         result = await db.execute(
             select(LanguageModel).where(LanguageModel.name == lang_name)
@@ -189,7 +177,21 @@ async def create_movie(
             db.add(lang)
             await db.flush()
             await db.refresh(lang)
-        new_movie.languages.append(lang)
+        languages.append(lang)
+
+    new_movie = MovieModel(
+        name=movie.name,
+        date=movie.date,
+        score=movie.score,
+        overview=movie.overview,
+        status=movie.status,
+        budget=movie.budget,
+        revenue=movie.revenue,
+        country=country,
+        genres=genres,
+        actors=actors,
+        languages=languages
+    )
 
     db.add(new_movie)
     await db.commit()
@@ -215,6 +217,10 @@ async def update_movie(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Movie with the given ID was not found."
         )
+
+    update_data = movie.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(db_movie, field, value)
 
     await db.commit()
     await db.refresh(db_movie)
